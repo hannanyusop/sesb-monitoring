@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CycleStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum OcrStatus {
+  NOT_APPLICABLE
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum CycleActionType {
+  START
+  UNDO
+}
+
+model House {
+  id        String         @id @default(uuid()) @db.Uuid
+  name      String         @db.VarChar(120)
+  address   String?        @db.VarChar(500)
+  notes     String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime       @updatedAt @db.Timestamptz(6)
+  meters    Meter[]
+  cycles    BillingCycle[]
+}
+
+model Meter {
+  id        String         @id @default(uuid()) @db.Uuid
+  houseId   String         @db.Uuid
+  label     String         @db.VarChar(120)
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime       @updatedAt @db.Timestamptz(6)
+  house     House          @relation(fields: [houseId], references: [id], onDelete: Restrict)
+  readings  MeterReading[]
+  cycles    BillingCycle[]
+
+  @@index([houseId])
+}
+
+model Tariff {
+  id                 String       @id @default(uuid()) @db.Uuid
+  name               String       @db.VarChar(160)
+  effectiveStartDate DateTime     @db.Timestamptz(6)
+  effectiveEndDate   DateTime?    @db.Timestamptz(6)
+  active             Boolean      @default(true)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(6)
+  tiers              TariffTier[]
+
+  @@unique([name, effectiveStartDate])
+  @@index([effectiveStartDate, effectiveEndDate])
+}
+
+model TariffTier {
+  id                String   @id @default(uuid()) @db.Uuid
+  tariffId          String   @db.Uuid
+  lowerKwh          Decimal  @db.Decimal(20, 8)
+  upperKwh          Decimal? @db.Decimal(20, 8)
+  rateSenPerKwh     Decimal  @db.Decimal(12, 6)
+  order             Int
+  tariff            Tariff   @relation(fields: [tariffId], references: [id], onDelete: Restrict)
+
+  @@unique([tariffId, order])
+  @@index([tariffId])
+}
+
+model BillingCycle {
+  id                   String         @id @default(uuid()) @db.Uuid
+  houseId              String         @db.Uuid
+  meterId              String         @db.Uuid
+  status               CycleStatus    @default(ACTIVE)
+  startingReadingId    String?        @unique @db.Uuid
+  endingReadingId      String?        @unique @db.Uuid
+  openingTimestamp     DateTime?      @db.Timestamptz(6)
+  closingTimestamp     DateTime?      @db.Timestamptz(6)
+  tariffSnapshot       Json?
+  consumptionKwh       Decimal        @default(0) @db.Decimal(20, 8)
+  calculatedAmountRm   Decimal        @default(0) @db.Decimal(20, 8)
+  createdAt            DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime       @updatedAt @db.Timestamptz(6)
+  house                House          @relation(fields: [houseId], references: [id], onDelete: Restrict)
+  meter                Meter          @relation(fields: [meterId], references: [id], onDelete: Restrict)
+  startingReading      MeterReading?  @relation("CycleStartingReading", fields: [startingReadingId], references: [id], onDelete: Restrict)
+  endingReading        MeterReading?  @relation("CycleEndingReading", fields: [endingReadingId], references: [id], onDelete: Restrict)
+  readings             MeterReading[] @relation("ReadingCycle")
+  actions              CycleAction[]  @relation("ActionCycle")
+  previousForActions   CycleAction[]  @relation("PreviousCycle")
+  newForActions        CycleAction[]  @relation("NewCycle")
+
+  @@index([houseId])
+  @@index([meterId])
+  @@index([status])
+}
+
+model MeterReading {
+  id                 String         @id @default(uuid()) @db.Uuid
+  meterId            String         @db.Uuid
+  billingCycleId     String         @db.Uuid
+  valueKwh           Decimal        @db.Decimal(20, 8)
+  rawOcrValue        Decimal?       @db.Decimal(20, 8)
+  manualCorrection   Boolean        @default(false)
+  ocrStatus          OcrStatus      @default(NOT_APPLICABLE)
+  photographPath     String?
+  photographMetadata Json?
+  captureTimestamp   DateTime       @db.Timestamptz(6)
+  createdAt          DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(6)
+  meter              Meter          @relation(fields: [meterId], references: [id], onDelete: Restrict)
+  billingCycle       BillingCycle   @relation("ReadingCycle", fields: [billingCycleId], references: [id], onDelete: Restrict)
+  startsCycle        BillingCycle?  @relation("CycleStartingReading")
+  endsCycle          BillingCycle?  @relation("CycleEndingReading")
+
+  @@index([meterId, captureTimestamp(sort: Desc)])
+  @@index([billingCycleId, captureTimestamp(sort: Desc)])
+}
+
+model CycleAction {
+  id              String          @id @default(uuid()) @db.Uuid
+  billingCycleId  String          @db.Uuid
+  actionType      CycleActionType
+  actionTimestamp DateTime        @default(now()) @db.Timestamptz(6)
+  previousCycleId String?         @db.Uuid
+  newCycleId      String?         @db.Uuid
+  billingCycle    BillingCycle    @relation("ActionCycle", fields: [billingCycleId], references: [id], onDelete: Restrict)
+  previousCycle   BillingCycle?   @relation("PreviousCycle", fields: [previousCycleId], references: [id], onDelete: Restrict)
+  newCycle        BillingCycle?   @relation("NewCycle", fields: [newCycleId], references: [id], onDelete: Restrict)
+
+  @@index([billingCycleId])
+  @@index([actionTimestamp])
+}

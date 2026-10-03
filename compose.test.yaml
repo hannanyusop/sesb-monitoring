@@ -1,0 +1,14 @@
+services:
+  postgres-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sesb_monitoring_test
+      POSTGRES_USER: sesb
+      POSTGRES_PASSWORD: sesb
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sesb -d sesb_monitoring_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
