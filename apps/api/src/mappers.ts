@@ -13,6 +13,8 @@ export function mapReading(reading: MeterReading): Reading {
     rawOcrValue: reading.rawOcrValue?.toString() ?? null,
     manualCorrection: reading.manualCorrection,
     ocrStatus: reading.ocrStatus.toLowerCase() as Reading["ocrStatus"],
+    source: reading.source.toLowerCase() as Reading["source"],
+    overrideReason: reading.overrideReason,
     photographPath: reading.photographPath,
     captureTimestamp: iso(reading.captureTimestamp),
     createdAt: iso(reading.createdAt),

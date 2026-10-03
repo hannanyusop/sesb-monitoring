@@ -16,6 +16,8 @@ export const ReadingSchema = z.object({
   rawOcrValue: DecimalStringSchema.nullable(),
   manualCorrection: z.boolean(),
   ocrStatus: z.enum(["not_applicable", "pending", "succeeded", "failed"]),
+  source: z.enum(["manual", "ocr", "cycle_start_override"]),
+  overrideReason: z.string().nullable(),
   photographPath: z.string().nullable(),
   captureTimestamp: OffsetDateTimeSchema,
   createdAt: OffsetDateTimeSchema,

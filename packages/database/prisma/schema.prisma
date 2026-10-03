@@ -24,12 +24,25 @@ enum CycleActionType {
   UNDO
 }
 
+enum BudgetType {
+  KWH
+  RM
+}
+
+enum ReadingSource {
+  MANUAL
+  OCR
+  CYCLE_START_OVERRIDE
+}
+
 model House {
   id        String         @id @default(uuid()) @db.Uuid
   name      String         @db.VarChar(120)
   address   String?        @db.VarChar(500)
   notes     String?
   active    Boolean        @default(true)
+  defaultBudgetType  BudgetType?
+  defaultBudgetValue Decimal?      @db.Decimal(20, 8)
   createdAt DateTime       @default(now()) @db.Timestamptz(6)
   updatedAt DateTime       @updatedAt @db.Timestamptz(6)
   meters    Meter[]
@@ -82,13 +95,15 @@ model BillingCycle {
   houseId              String         @db.Uuid
   meterId              String         @db.Uuid
   status               CycleStatus    @default(ACTIVE)
-  startingReadingId    String?        @unique @db.Uuid
+  startingReadingId    String?        @db.Uuid
   endingReadingId      String?        @unique @db.Uuid
   openingTimestamp     DateTime?      @db.Timestamptz(6)
   closingTimestamp     DateTime?      @db.Timestamptz(6)
   tariffSnapshot       Json?
   consumptionKwh       Decimal        @default(0) @db.Decimal(20, 8)
   calculatedAmountRm   Decimal        @default(0) @db.Decimal(20, 8)
+  budgetType            BudgetType?
+  budgetValue           Decimal?       @db.Decimal(20, 8)
   createdAt            DateTime       @default(now()) @db.Timestamptz(6)
   updatedAt            DateTime       @updatedAt @db.Timestamptz(6)
   house                House          @relation(fields: [houseId], references: [id], onDelete: Restrict)
@@ -103,6 +118,7 @@ model BillingCycle {
   @@index([houseId])
   @@index([meterId])
   @@index([status])
+  @@index([startingReadingId])
 }
 
 model MeterReading {
@@ -113,6 +129,8 @@ model MeterReading {
   rawOcrValue        Decimal?       @db.Decimal(20, 8)
   manualCorrection   Boolean        @default(false)
   ocrStatus          OcrStatus      @default(NOT_APPLICABLE)
+  source             ReadingSource @default(MANUAL)
+  overrideReason     String?        @db.VarChar(500)
   photographPath     String?
   photographMetadata Json?
   captureTimestamp   DateTime       @db.Timestamptz(6)
@@ -120,7 +138,7 @@ model MeterReading {
   updatedAt          DateTime       @updatedAt @db.Timestamptz(6)
   meter              Meter          @relation(fields: [meterId], references: [id], onDelete: Restrict)
   billingCycle       BillingCycle   @relation("ReadingCycle", fields: [billingCycleId], references: [id], onDelete: Restrict)
-  startsCycle        BillingCycle?  @relation("CycleStartingReading")
+  startsCycles       BillingCycle[] @relation("CycleStartingReading")
   endsCycle          BillingCycle?  @relation("CycleEndingReading")
 
   @@index([meterId, captureTimestamp(sort: Desc)])
@@ -134,6 +152,7 @@ model CycleAction {
   actionTimestamp DateTime        @default(now()) @db.Timestamptz(6)
   previousCycleId String?         @db.Uuid
   newCycleId      String?         @db.Uuid
+  metadata        Json?
   billingCycle    BillingCycle    @relation("ActionCycle", fields: [billingCycleId], references: [id], onDelete: Restrict)
   previousCycle   BillingCycle?   @relation("PreviousCycle", fields: [previousCycleId], references: [id], onDelete: Restrict)
   newCycle        BillingCycle?   @relation("NewCycle", fields: [newCycleId], references: [id], onDelete: Restrict)
