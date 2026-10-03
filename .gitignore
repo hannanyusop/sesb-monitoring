@@ -1,9 +1,11 @@
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
 playwright-report/
 test-results/
 packages/database/src/generated/
+.postgres-test-data/
