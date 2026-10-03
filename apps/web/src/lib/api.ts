@@ -1,15 +1,25 @@
 import {
   ApiErrorSchema,
+  BudgetInputSchema,
+  CycleInsightsSchema,
+  CyclePreviewInputSchema,
+  CyclePreviewSchema,
+  CycleSummaryDetailSchema,
   CreateHouseInputSchema,
   CreateReadingInputSchema,
   HouseDetailSchema,
   HouseSummarySchema,
   ReadingCreatedResponseSchema,
   ReadingPageSchema,
+  StartCycleInputSchema,
+  StartCycleResponseSchema,
   TariffSchema,
   UpdateHouseInputSchema,
   type CreateHouseInput,
   type CreateReadingInput,
+  type BudgetInput,
+  type CyclePreviewInput,
+  type StartCycleInput,
   type UpdateHouseInput,
 } from "@sesb/contracts";
 import { z } from "zod";
@@ -66,4 +76,16 @@ export const api = {
     ReadingPageSchema,
   ),
   getActiveTariff: () => request("/tariffs/active", TariffSchema),
+  getCycles: (houseId: string) => request(`/houses/${houseId}/cycles`, z.array(CycleSummaryDetailSchema)),
+  getCycleInsights: (houseId: string, cycleId: string) => request(`/houses/${houseId}/cycles/${cycleId}/insights`, CycleInsightsSchema),
+  previewCycle: (houseId: string, input: CyclePreviewInput) => request(`/houses/${houseId}/cycles/preview`, CyclePreviewSchema, {
+    method: "POST", body: JSON.stringify(CyclePreviewInputSchema.parse(input)),
+  }),
+  startCycle: (houseId: string, input: StartCycleInput) => request(`/houses/${houseId}/cycles`, StartCycleResponseSchema, {
+    method: "POST", body: JSON.stringify(StartCycleInputSchema.parse(input)),
+  }),
+  undoCycle: (houseId: string, cycleId: string) => request(`/houses/${houseId}/cycles/${cycleId}/undo`, z.object({ restoredCycle: CycleSummaryDetailSchema }), { method: "POST" }),
+  setBudget: (houseId: string, input: BudgetInput) => request(`/houses/${houseId}/budget`, CycleSummaryDetailSchema, {
+    method: "PUT", body: JSON.stringify(BudgetInputSchema.parse(input)),
+  }),
 };
