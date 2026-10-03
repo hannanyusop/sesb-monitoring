@@ -7,6 +7,7 @@ import { registerHealthRoute } from "./routes/health.js";
 import { registerHouseRoutes } from "./routes/houses.js";
 import { registerReadingRoutes } from "./routes/readings.js";
 import { registerTariffRoutes } from "./routes/tariffs.js";
+import { registerCycleRoutes } from "./routes/cycles.js";
 
 export async function buildApp(options: { prisma?: PrismaClient; logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: options.logger ?? false });
@@ -17,6 +18,7 @@ export async function buildApp(options: { prisma?: PrismaClient; logger?: boolea
   registerHouseRoutes(app, prisma);
   registerReadingRoutes(app, prisma);
   registerTariffRoutes(app, prisma);
+  registerCycleRoutes(app, prisma);
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof DomainError) {

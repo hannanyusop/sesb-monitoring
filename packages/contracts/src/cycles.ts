@@ -109,4 +109,5 @@ export type BudgetInput = z.infer<typeof BudgetInputSchema>;
 export type CycleSummaryDetail = z.infer<typeof CycleSummaryDetailSchema>;
 export type CyclePreview = z.infer<typeof CyclePreviewSchema>;
 export type StartCycleResponse = z.infer<typeof StartCycleResponseSchema>;
+export type UndoCycleResponse = z.infer<typeof UndoCycleResponseSchema>;
 export type CycleInsights = z.infer<typeof CycleInsightsSchema>;

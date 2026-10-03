@@ -106,4 +106,77 @@ describe("monitoring API", () => {
     expect(responses.map((response) => response.statusCode)).toEqual([201, 201]);
     await app.close();
   });
+
+  it("starts a custom cycle with an audited boundary and preserves the previous cycle", async () => {
+    const app = await buildApp({ prisma });
+    const houseId = await createHouse(app);
+    await app.inject({ method: "POST", url: `/houses/${houseId}/readings`, payload: { valueKwh: "1000", captureTimestamp: "2026-09-01T08:00:00+08:00" } });
+    await app.inject({ method: "POST", url: `/houses/${houseId}/readings`, payload: { valueKwh: "1100", captureTimestamp: "2026-09-30T08:00:00+08:00" } });
+
+    const unconfirmed = await app.inject({
+      method: "POST", url: `/houses/${houseId}/cycles`,
+      payload: { mode: "CUSTOM", customStartKwh: "1125", startTimestamp: "2026-10-01T08:00:00+08:00", acknowledgedGap: false },
+    });
+    expect(unconfirmed.statusCode).toBe(422);
+    expect(unconfirmed.json().error.code).toBe("CYCLE_GAP_ACKNOWLEDGEMENT_REQUIRED");
+
+    const started = await app.inject({
+      method: "POST", url: `/houses/${houseId}/cycles`,
+      payload: { mode: "CUSTOM", customStartKwh: "1125", startTimestamp: "2026-10-01T08:00:00+08:00", acknowledgedGap: true, reason: "Meter replacement" },
+    });
+    expect(started.statusCode).toBe(201);
+    expect(started.json()).toMatchObject({
+      closedCycle: { status: "closed", endKwh: "1100", consumptionKwh: "100" },
+      activeCycle: { status: "active", startKwh: "1125", consumptionKwh: "0" },
+    });
+    const boundary = await prisma.meterReading.findUnique({ where: { id: started.json().activeCycle.startingReadingId } });
+    expect(boundary).toMatchObject({ source: "CYCLE_START_OVERRIDE", overrideReason: "Meter replacement" });
+    await app.close();
+  });
+
+  it("updates the active budget, reports insights, and keeps the closed budget snapshot", async () => {
+    const app = await buildApp({ prisma });
+    const houseId = await createHouse(app);
+    await app.inject({ method: "POST", url: `/houses/${houseId}/readings`, payload: { valueKwh: "1000", captureTimestamp: "2026-09-01T08:00:00+08:00" } });
+    await app.inject({ method: "POST", url: `/houses/${houseId}/readings`, payload: { valueKwh: "1100", captureTimestamp: "2026-09-03T08:00:00+08:00" } });
+    await app.inject({ method: "PUT", url: `/houses/${houseId}/budget`, payload: { type: "KWH", value: "200" } });
+    const started = await app.inject({
+      method: "POST", url: `/houses/${houseId}/cycles`,
+      payload: { mode: "CARRY_FORWARD", startTimestamp: "2026-09-04T08:00:00+08:00", acknowledgedGap: false },
+    });
+    const activeId = started.json().activeCycle.id as string;
+    await app.inject({ method: "POST", url: `/houses/${houseId}/readings`, payload: { valueKwh: "1160", captureTimestamp: "2026-09-06T08:00:00+08:00" } });
+    await app.inject({ method: "PUT", url: `/houses/${houseId}/budget`, payload: { type: "RM", value: "50" } });
+
+    const cycles = await app.inject({ method: "GET", url: `/houses/${houseId}/cycles` });
+    expect(cycles.json()[0].budget).toEqual({ type: "RM", value: "50" });
+    expect(cycles.json()[1].budget).toEqual({ type: "KWH", value: "200" });
+    const insights = await app.inject({ method: "GET", url: `/houses/${houseId}/cycles/${activeId}/insights` });
+    expect(insights.statusCode).toBe(200);
+    expect(insights.json()).toMatchObject({
+      representedDays: 3,
+      averageDailyKwh: "20",
+      budgetProgress: { type: "RM", budget: "50" },
+      comparison: { consumption: { current: "60", previous: "100" } },
+      undo: { eligible: false, reasonCode: "LATER_READING_EXISTS" },
+    });
+    await app.close();
+  });
+
+  it("undoes a new custom cycle inside the safety window", async () => {
+    const app = await buildApp({ prisma });
+    const houseId = await createHouse(app);
+    await app.inject({ method: "POST", url: `/houses/${houseId}/readings`, payload: { valueKwh: "1000", captureTimestamp: "2026-10-01T08:00:00+08:00" } });
+    const started = await app.inject({
+      method: "POST", url: `/houses/${houseId}/cycles`,
+      payload: { mode: "CUSTOM", customStartKwh: "1010", startTimestamp: "2026-10-02T08:00:00+08:00", acknowledgedGap: true },
+    });
+    const activeId = started.json().activeCycle.id as string;
+    const undone = await app.inject({ method: "POST", url: `/houses/${houseId}/cycles/${activeId}/undo` });
+    expect(undone.statusCode).toBe(200);
+    expect(undone.json().restoredCycle).toMatchObject({ status: "active", startKwh: "1000" });
+    expect(await prisma.billingCycle.findUnique({ where: { id: activeId } })).toBeNull();
+    expect(await prisma.meterReading.findFirst({ where: { source: "CYCLE_START_OVERRIDE" } })).toBeNull();
+    await app.close();
+  });
 });
