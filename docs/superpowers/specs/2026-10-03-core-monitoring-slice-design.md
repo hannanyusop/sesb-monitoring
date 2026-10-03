@@ -22,6 +22,7 @@ This slice establishes the production architecture and stable data model needed 
 - Transactional house creation with one active meter and one uninitialised billing cycle.
 - House editing and deactivation without historical deletion.
 - Manual cumulative meter-reading entry with adjustable capture time.
+- Explicit backdated meter-reading entry with user-selected past date and time.
 - Chronological and cumulative-value validation, including valid insertion between existing readings.
 - Current-cycle consumption and cumulative tiered charge calculation in the backend.
 - A mobile-first dashboard, house form, house detail, active-cycle summary, and reading history.
@@ -98,17 +99,19 @@ One database transaction creates the house, its active meter, and its active uni
 
 ### Confirm the first reading
 
-The API locks or otherwise serialises the active cycle update, validates the reading, selects the tariff effective at the cycle opening time, saves an immutable snapshot of its ordered tiers, creates the reading, assigns it as the starting reading, and sets consumption and charge to zero in one transaction.
+The API locks or otherwise serialises the active cycle update, validates the reading, sets the uninitialised cycle's opening time to the reading's capture timestamp, selects the tariff effective at that time, saves an immutable snapshot of its ordered tiers, creates the reading, assigns it as the starting reading, and sets consumption and charge to zero in one transaction. This lets the first reading itself be backdated without leaving the cycle opening time inconsistent.
 
 ### Confirm a later reading
 
 For a proposed `(captureTimestamp, value)` pair, the API finds the immediately preceding and following confirmed readings for the meter. It requires:
 
+- The capture timestamp is not in the future according to server time.
+- The capture timestamp is not earlier than the active cycle's starting reading.
 - A unique capture timestamp for that meter.
 - `value >= preceding.value` when a preceding reading exists.
 - `value <= following.value` when a following reading exists.
 
-This permits a historically captured reading only when it preserves both chronological and cumulative-value order. On success, the reading is stored and the active cycle totals are recalculated using the chronologically latest reading in that cycle.
+This permits an explicitly backdated reading only when it preserves both chronological and cumulative-value order. On success, the reading is inserted at its chronological position in history. Active-cycle totals are recalculated using the chronologically latest reading in that cycle, so inserting an older reading does not incorrectly replace the current reading.
 
 ### Calculate the estimate
 
@@ -149,7 +152,9 @@ The detail page shows the current cycle summary, a manual reading form, and reve
 
 ### Reading form behavior
 
-The capture timestamp defaults to the current date and time in `Asia/Kuching` and remains adjustable. Submission is disabled while a save is in progress. Field values remain intact after validation or API errors. Successful creation refreshes the detail view and dashboard data immediately.
+The capture timestamp defaults to the current date and time in `Asia/Kuching`. A visible **Backdate reading** control lets the owner select a past local date and time using touch-friendly date and time inputs. Future timestamps are rejected, and invalid backdated values receive a field-specific explanation when they conflict with the readings immediately before or after them. The selected date, time, and entered kWh value remain intact after validation or API errors.
+
+Submission is disabled while a save is in progress. Successful creation inserts the reading into its correct reverse-chronological history position and refreshes the detail view and dashboard data immediately.
 
 Controls are touch-friendly and no primary flow requires horizontal scrolling at typical phone widths.
 
@@ -172,7 +177,7 @@ Test cumulative allocation and exact display rounding at 0, 200, 201, 300, 301, 
 
 ### Domain validation unit tests
 
-Test negative and non-numeric values, lower-than-preceding values, greater-than-following inserted values, duplicate timestamps, valid insertion between surrounding readings, and timezone-bearing capture timestamps.
+Test negative and non-numeric values, future timestamps, lower-than-preceding values, greater-than-following inserted values, duplicate timestamps, valid backdated insertion between surrounding readings, and timezone-bearing capture timestamps.
 
 ### PostgreSQL integration tests
 
@@ -180,11 +185,11 @@ Test idempotent tariff seeding, referential and uniqueness constraints, transact
 
 ### Web tests
 
-Use component tests for populated and empty dashboard cards, RM estimate labelling, first-reading prompts, pending submission state, retained form values, and field-specific validation messages.
+Use component tests for populated and empty dashboard cards, RM estimate labelling, first-reading prompts, the backdate control and local date/time inputs, pending submission state, retained form values, and field-specific validation messages.
 
 ### End-to-end and responsive verification
 
-A browser smoke test creates a house, records its baseline reading, records a later reading, and observes updated consumption and estimate. Verify the dashboard, house form, house detail, and reading form at representative phone and desktop widths.
+A browser smoke test creates a house, records its baseline reading, records a later reading, adds a valid backdated reading between them, verifies its history position, and observes that current consumption and the estimate still use the latest reading. Verify the dashboard, house form, house detail, and reading form at representative phone and desktop widths.
 
 ## Delivery Boundary
 
