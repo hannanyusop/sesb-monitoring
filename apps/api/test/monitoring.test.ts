@@ -93,4 +93,17 @@ describe("monitoring API", () => {
     expect(invalid.json()).toMatchObject({ error: { code: "READING_SEQUENCE_INVALID", fields: { valueKwh: expect.any(String) } } });
     await app.close();
   });
+
+  it("retries serializable conflicts from simultaneous independent readings", async () => {
+    const app = await buildApp({ prisma });
+    const firstHouse = await createHouse(app);
+    const secondHouse = await createHouse(app);
+    const responses = await Promise.all([firstHouse, secondHouse].map((houseId) => app.inject({
+      method: "POST",
+      url: `/houses/${houseId}/readings`,
+      payload: { valueKwh: "1000", captureTimestamp: "2026-09-01T08:00:00+08:00" },
+    })));
+    expect(responses.map((response) => response.statusCode)).toEqual([201, 201]);
+    await app.close();
+  });
 });

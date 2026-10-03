@@ -25,6 +25,7 @@ export function createReadingService(prisma: PrismaClient) {
       houseId: string,
       input: CreateReadingInput,
       now: Date = new Date(),
+      attempt = 0,
     ): Promise<ReadingCreatedResponse> {
       const capturedAt = new Date(input.captureTimestamp);
       if (capturedAt.getTime() > now.getTime()) {
@@ -140,6 +141,12 @@ export function createReadingService(prisma: PrismaClient) {
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {
         if (error instanceof DomainError) throw error;
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+          if (attempt < 2) {
+            return createReadingService(prisma).createManualReading(houseId, input, now, attempt + 1);
+          }
+          throw new DomainError(409, "READING_WRITE_CONFLICT", "The reading changed concurrently. Please try again.");
+        }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
           throw new DomainError(409, "READING_TIMESTAMP_CONFLICT", "A reading already exists at this date and time", {
             captureTimestamp: "Choose a different date or time",
