@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { seedTariffs } from "../prisma/seed.js";
 
+process.env.DATABASE_URL ??= "postgresql://sesb:sesb@localhost:55432/sesb_monitoring_test";
 const prisma = new PrismaClient();
 
 beforeEach(async () => {

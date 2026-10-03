@@ -27,6 +27,18 @@ export const ReadingPageSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
+export const ReadingCreatedResponseSchema = z.object({
+  reading: ReadingSchema,
+  activeCycle: z.object({
+    id: z.string().uuid(),
+    startingReadingId: z.string().uuid().nullable(),
+    openingTimestamp: OffsetDateTimeSchema.nullable(),
+    consumptionKwh: DecimalStringSchema,
+    estimatedChargeRm: DecimalStringSchema,
+  }),
+});
+
 export type CreateReadingInput = z.infer<typeof CreateReadingInputSchema>;
 export type Reading = z.infer<typeof ReadingSchema>;
 export type ReadingPage = z.infer<typeof ReadingPageSchema>;
+export type ReadingCreatedResponse = z.infer<typeof ReadingCreatedResponseSchema>;
