@@ -31,13 +31,13 @@ The web app is available at `http://localhost:8080`; the API is at `http://local
 Apply pending migrations without deleting data:
 
 ```bash
-curl -X POST http://localhost:3000/admin/database/migrate
+curl http://localhost:3000/admin/database/migrate
 ```
 
 > **Warning:** The next operation permanently deletes every house, meter reading, billing cycle, budget, and audit action before rebuilding and seeding the database.
 
 ```bash
-curl -X POST http://localhost:3000/admin/database/fresh-seed
+curl http://localhost:3000/admin/database/fresh-seed
 ```
 
 These endpoints have no application-level authentication. Keep the API restricted at the deployment proxy or network layer.

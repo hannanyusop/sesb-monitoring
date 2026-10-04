@@ -41,10 +41,10 @@ The Overview and Readings links use stable section anchors. Navigating to Readin
 
 ### Routes
 
-The API exposes two bodyless POST routes:
+The API exposes two GET routes:
 
-- `POST /admin/database/migrate`
-- `POST /admin/database/fresh-seed`
+- `GET /admin/database/migrate`
+- `GET /admin/database/fresh-seed`
 
 No token, session, or application-level authorization is required. Deployment owners remain responsible for restricting the API at the proxy or network layer, as already required for the rest of this private application.
 

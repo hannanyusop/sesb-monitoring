@@ -358,7 +358,7 @@ git commit -m "feat: add database operation service"
 
 **Interfaces:**
 - Consumes: `DatabaseOperations` from Task 3 and Fastify's existing global error handler.
-- Produces: `POST /admin/database/migrate` and `POST /admin/database/fresh-seed`.
+- Produces: `GET /admin/database/migrate` and `GET /admin/database/fresh-seed`.
 
 - [ ] **Step 1: Write failing route tests with an injected service**
 
@@ -366,7 +366,7 @@ Create a fake Prisma object sufficient for app construction and inject fake oper
 
 ```ts
 it("runs migration only", async () => {
-  const response = await app.inject({ method: "POST", url: "/admin/database/migrate" });
+  const response = await app.inject({ method: "GET", url: "/admin/database/migrate" });
   expect(response.statusCode).toBe(200);
   expect(response.json()).toEqual({ operation: "migrate", status: "completed" });
   expect(operations.migrate).toHaveBeenCalledOnce();
@@ -374,14 +374,14 @@ it("runs migration only", async () => {
 });
 
 it("runs fresh and seed", async () => {
-  const response = await app.inject({ method: "POST", url: "/admin/database/fresh-seed" });
+  const response = await app.inject({ method: "GET", url: "/admin/database/fresh-seed" });
   expect(response.statusCode).toBe(200);
   expect(response.json()).toEqual({ operation: "fresh-seed", status: "completed" });
 });
 
 it("keeps command failures private", async () => {
   operations.migrate.mockRejectedValueOnce(new Error("secret command output"));
-  const response = await app.inject({ method: "POST", url: "/admin/database/migrate" });
+  const response = await app.inject({ method: "GET", url: "/admin/database/migrate" });
   expect(response.statusCode).toBe(500);
   expect(response.body).not.toContain("secret command output");
 });
@@ -453,13 +453,13 @@ Add a `Database operations API` section after the Docker startup details:
 Apply pending migrations without deleting data:
 
 ```bash
-curl -X POST http://localhost:3000/admin/database/migrate
+curl http://localhost:3000/admin/database/migrate
 ```
 
 > **Warning:** The next operation permanently deletes every house, meter reading, billing cycle, budget, and audit action before rebuilding and seeding the database.
 
 ```bash
-curl -X POST http://localhost:3000/admin/database/fresh-seed
+curl http://localhost:3000/admin/database/fresh-seed
 ```
 
 These endpoints have no application-level authentication. Keep the API restricted at the deployment proxy or network layer.
