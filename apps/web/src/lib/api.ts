@@ -42,7 +42,7 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
   try {
     response = await fetch(`${baseUrl}${path}`, {
       ...init,
-      headers: { "content-type": "application/json", ...init?.headers },
+      headers: { ...(init?.body !== undefined ? { "content-type": "application/json" } : {}), ...init?.headers },
     });
   } catch {
     throw new ApiClientError(0, "API_UNAVAILABLE", "The monitoring service is unavailable. Try again shortly.");

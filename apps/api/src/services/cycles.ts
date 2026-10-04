@@ -199,7 +199,10 @@ export function createCycleService(prisma: PrismaClient) {
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof DomainError) throw error;
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) return start(houseId, input, now, attempt + 1);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 5) {
+        await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
+        return start(houseId, input, now, attempt + 1);
+      }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new DomainError(409, "CYCLE_START_CONFLICT", "A meter reading already exists at this cycle start time", { startTimestamp: "Choose a different time" });
       }

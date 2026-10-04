@@ -3,18 +3,25 @@ import { prisma as defaultPrisma, Prisma, type PrismaClient } from "@sesb/databa
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import { DomainError } from "./errors.js";
+import { registerAdminDatabaseRoutes } from "./routes/admin-database.js";
 import { registerHealthRoute } from "./routes/health.js";
 import { registerHouseRoutes } from "./routes/houses.js";
 import { registerReadingRoutes } from "./routes/readings.js";
 import { registerTariffRoutes } from "./routes/tariffs.js";
 import { registerCycleRoutes } from "./routes/cycles.js";
+import { createDatabaseOperations, type DatabaseOperations } from "./services/database-operations.js";
 
-export async function buildApp(options: { prisma?: PrismaClient; logger?: boolean } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { prisma?: PrismaClient; logger?: boolean; databaseOperations?: DatabaseOperations } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: options.logger ?? false });
   const prisma = options.prisma ?? defaultPrisma;
-  await app.register(cors, { origin: process.env.WEB_ORIGIN ?? "http://localhost:5173" });
+  const databaseOperations = options.databaseOperations ?? createDatabaseOperations({ prisma });
+  await app.register(cors, {
+    origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  });
 
   registerHealthRoute(app, prisma);
+  registerAdminDatabaseRoutes(app, databaseOperations);
   registerHouseRoutes(app, prisma);
   registerReadingRoutes(app, prisma);
   registerTariffRoutes(app, prisma);

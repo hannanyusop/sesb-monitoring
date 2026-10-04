@@ -11,11 +11,23 @@ async function addReading(page: Page, value: string, date: string, time: string)
 
 test("creates a house and preserves totals after a backdated insertion", async ({ page }) => {
   const suffix = `${Date.now()}-${test.info().project.name}`;
+  const houseName = `Family home ${suffix}`;
   await page.goto("/");
   await page.getByRole("link", { name: /add house/i }).first().click();
-  await page.getByLabel("House name").fill(`Family home ${suffix}`);
+  await page.getByLabel("House name").fill(houseName);
   await page.getByLabel("Meter label").fill(`SESB-${suffix}`);
   await page.getByRole("button", { name: "Create house" }).click();
+
+  const houseNavigation = page.getByRole("navigation", { name: "House navigation" });
+  await expect(houseNavigation).toBeVisible();
+  await expect(houseNavigation.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+  await houseNavigation.getByRole("link", { name: "Readings" }).click();
+  await expect(page).toHaveURL(/#readings$/);
+  await expect(houseNavigation.getByRole("link", { name: "Readings" })).toHaveAttribute("aria-current", "page");
+  await houseNavigation.getByRole("link", { name: "Edit" }).click();
+  await expect(page.getByRole("heading", { name: `Edit ${houseName}` })).toBeVisible();
+  await page.getByRole("navigation", { name: "House navigation" }).getByRole("link", { name: "Overview" }).click();
+  await expect(page.getByRole("heading", { name: houseName })).toBeVisible();
 
   await addReading(page, "1000", "2026-09-01", "08:00");
   await addReading(page, "1250", "2026-09-03", "08:00");

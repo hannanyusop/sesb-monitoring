@@ -142,7 +142,8 @@ export function createReadingService(prisma: PrismaClient) {
       } catch (error) {
         if (error instanceof DomainError) throw error;
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
-          if (attempt < 2) {
+          if (attempt < 5) {
+            await new Promise((resolve) => setTimeout(resolve, 20 * (attempt + 1)));
             return createReadingService(prisma).createManualReading(houseId, input, now, attempt + 1);
           }
           throw new DomainError(409, "READING_WRITE_CONFLICT", "The reading changed concurrently. Please try again.");
